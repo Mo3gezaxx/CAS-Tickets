@@ -25,13 +25,11 @@ TICKET_DESCRIPTIONS = {
 بلاش تبقى توكسيك ولو لقيت نفسك هتكون افك اكتب فى الروم <#1475111804232405023> و منشن رول levelers
 ولو فى اي حاجه مش فاهمها او هتعك فيها او عكتها بالفعل قولي متتكسفش يمكن نعرف نحلها سوا <#1475099936692637756>
 و حاول تدي التيم بتاعك اونر حتي لو كان مش احسن حاجه""",
-
     "valorant": "",
     "shop": "",
     "marvel": ""
 }
 
-# ===== Counter File =====
 COUNTER_FILE = "tickets.json"
 
 if os.path.exists(COUNTER_FILE):
@@ -40,11 +38,9 @@ if os.path.exists(COUNTER_FILE):
 else:
     ticket_counters = {"shop": 0, "lol": 0, "valorant": 0, "marvel": 0}
 
-
 def save_counters():
     with open(COUNTER_FILE, "w") as f:
         json.dump(ticket_counters, f)
-
 
 # ===== Bot =====
 intents = discord.Intents.default()
@@ -53,36 +49,40 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-
 # ===== Buttons =====
 class TicketButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Claim", style=discord.ButtonStyle.primary)
+    @discord.ui.button(
+        label="Claim",
+        style=discord.ButtonStyle.primary,
+        custom_id="ticket_claim_button"
+    )
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             f"📌 Claimed by {interaction.user.mention}",
             ephemeral=True
         )
 
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
+    @discord.ui.button(
+        label="Close",
+        style=discord.ButtonStyle.danger,
+        custom_id="ticket_close_button"
+    )
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         thread = interaction.channel
         guild = interaction.guild
         log_channel = guild.get_channel(LOG_CHANNEL_ID)
 
-        opener = thread.owner_id
-        closer = interaction.user
-
-        # ===== Log Embed =====
         embed = discord.Embed(
             title="🔒 Ticket Closed",
             color=discord.Color.green()
         )
         embed.add_field(name="Ticket", value=thread.name)
-        embed.add_field(name="Opened By", value=f"<@{opener}>")
-        embed.add_field(name="Closed By", value=closer.mention)
+        embed.add_field(name="Opened By", value=f"<@{thread.owner_id}>")
+        embed.add_field(name="Closed By", value=interaction.user.mention)
         embed.add_field(
             name="Time",
             value=discord.utils.format_dt(discord.utils.utcnow())
@@ -94,14 +94,9 @@ class TicketButtons(discord.ui.View):
         if log_channel:
             await log_channel.send(embed=embed, view=view)
 
-        await interaction.response.send_message(
-            "✅ Ticket closed",
-            ephemeral=True
-        )
+        await interaction.response.send_message("✅ Ticket closed", ephemeral=True)
 
-        # ===== Archive =====
         await thread.edit(archived=True)
-
 
 # ===== Select =====
 class TicketSelect(discord.ui.Select):
@@ -128,7 +123,12 @@ class TicketSelect(discord.ui.Select):
                 emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)
             ),
         ]
-        super().__init__(placeholder="Choose a category", options=options)
+
+        super().__init__(
+            placeholder="Choose a category",
+            options=options,
+            custom_id="ticket_category_select"
+        )
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -137,8 +137,7 @@ class TicketSelect(discord.ui.Select):
         guild = interaction.guild
         member = interaction.user
 
-        channel_id = CATEGORY_CHANNELS.get(category)
-        channel = guild.get_channel(channel_id)
+        channel = guild.get_channel(CATEGORY_CHANNELS.get(category))
 
         if not channel:
             return await interaction.followup.send(
@@ -146,21 +145,18 @@ class TicketSelect(discord.ui.Select):
                 ephemeral=True
             )
 
-        # ===== Counter =====
         ticket_counters[category] += 1
         save_counters()
 
         number = str(ticket_counters[category]).zfill(3)
         thread_name = f"{category}-{number}"
 
-        # ===== Create Thread =====
         thread = await channel.create_thread(
             name=thread_name,
             type=discord.ChannelType.private_thread,
             auto_archive_duration=1440
         )
 
-        # ===== Embed =====
         embed = discord.Embed(
             title="🎫 Support Ticket",
             description=f"{member.mention} opened **{category}** ticket",
@@ -175,7 +171,6 @@ class TicketSelect(discord.ui.Select):
                 inline=False
             )
 
-        # ===== Send Ticket Message =====
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
             embed=embed,
@@ -187,31 +182,40 @@ class TicketSelect(discord.ui.Select):
             ephemeral=True
         )
 
-        # Reset select
-        await interaction.message.edit(view=TicketView())
-
-
 # ===== Panel =====
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketSelect())
 
-
 @bot.command()
 async def CAS(ctx):
     if not ctx.author.guild_permissions.administrator:
         return await ctx.send("❌ Admin only")
 
-    await ctx.send(
-        "اختار الخدمة اللي انت عايزها 👇",
-        view=TicketView()
-    )
+    await ctx.send("اختار الخدمة اللي انت عايزها 👇", view=TicketView())
 
-
+# ===== On Ready =====
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
 
+    # تسجيل الـ persistent views
+    bot.add_view(TicketButtons())
+    bot.add_view(TicketView())
+
+    # إعادة الانضمام للثريدات غير المؤرشفة
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                for thread in channel.threads:
+                    if not thread.archived:
+                        try:
+                            await thread.join()
+                        except:
+                            pass
+            except:
+                pass
+
+    print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
