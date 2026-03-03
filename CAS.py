@@ -104,27 +104,6 @@ class TicketButtons(discord.ui.View):
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         thread = interaction.channel
-        guild = interaction.guild
-        log_channel = guild.get_channel(LOG_CHANNEL_ID)
-
-        embed = discord.Embed(
-            title="🔒 Ticket Closed",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Ticket", value=thread.name)
-        embed.add_field(name="Opened By", value=f"<@{thread.owner_id}>")
-        embed.add_field(name="Closed By", value=interaction.user.mention)
-        embed.add_field(
-            name="Time",
-            value=discord.utils.format_dt(discord.utils.utcnow())
-        )
-
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="View Thread", url=thread.jump_url))
-
-        if log_channel:
-            await log_channel.send(embed=embed, view=view)
-
         await interaction.response.send_message("✅ Ticket closed", ephemeral=True)
         await thread.edit(archived=True)
 
@@ -132,14 +111,10 @@ class TicketButtons(discord.ui.View):
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="Buy From Our Shop", value="shop",
-                                 emoji=discord.PartialEmoji(name="shop", id=1475214748021948456)),
-            discord.SelectOption(label="League of Legends", value="lol",
-                                 emoji=discord.PartialEmoji(name="lol", id=1475214617511723128)),
-            discord.SelectOption(label="Valorant", value="valorant",
-                                 emoji=discord.PartialEmoji(name="valorant", id=1433440387074232330)),
-            discord.SelectOption(label="Marvel Rivals", value="marvel",
-                                 emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)),
+            discord.SelectOption(label="Buy From Our Shop", value="shop"),
+            discord.SelectOption(label="League of Legends", value="lol"),
+            discord.SelectOption(label="Valorant", value="valorant"),
+            discord.SelectOption(label="Marvel Rivals", value="marvel"),
         ]
 
         super().__init__(
@@ -149,7 +124,6 @@ class TicketSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
 
         category = self.values[0]
         guild = interaction.guild
@@ -157,24 +131,28 @@ class TicketSelect(discord.ui.Select):
 
         channel = guild.get_channel(CATEGORY_CHANNELS.get(category))
         if not channel:
-            return await interaction.followup.send("❌ Category channel not found", ephemeral=True)
+            return await interaction.response.send_message(
+                "❌ Category channel not found",
+                ephemeral=True
+            )
 
         topic = channel.topic or ""
-        counter = None
+        counter = 0
 
         if "ticket_counter=" in topic:
             try:
                 counter = int(topic.split("ticket_counter=")[1].split()[0])
             except:
-                counter = None
+                counter = 0
 
-        if counter is None:
-            default_starts = {
-                "valorant": 22,
-                "lol": 66,
-                "marvel": 15,
-                "shop": 0
-            }
+        default_starts = {
+            "valorant": 22,
+            "lol": 66,
+            "marvel": 15,
+            "shop": 0
+        }
+
+        if counter == 0:
             counter = default_starts.get(category, 0)
 
         counter += 1
@@ -205,13 +183,9 @@ class TicketSelect(discord.ui.Select):
             view=TicketButtons()
         )
 
-        await interaction.followup.send(
-            f"✅ Ticket created: {thread.mention}",
-            ephemeral=True
-        )
-
-        # 🔥 Reset للـ Select
-        await interaction.message.edit(view=TicketView())
+        # 🔥 Reset الاختيار بدون إنشاء View جديدة
+        self.values = []
+        await interaction.response.edit_message(view=self.view)
 
 class TicketView(discord.ui.View):
     def __init__(self):
@@ -220,9 +194,6 @@ class TicketView(discord.ui.View):
 
 @bot.command()
 async def CAS(ctx):
-    if not ctx.author.guild_permissions.administrator:
-        return await ctx.send("❌ Admin only")
-
     await ctx.send("👇 اختار الخدمة اللي انت عايزها", view=TicketView())
 
 @bot.event
