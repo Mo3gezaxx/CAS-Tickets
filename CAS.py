@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import os
 
-# ===== ENV (Railway) =====
+# ===== ENV =====
 TOKEN = os.getenv("TOKEN")
 
 SUPPORT_ROLE_ID = int(os.getenv("SUPPORT_ROLE_ID"))
@@ -16,7 +16,6 @@ CATEGORY_CHANNELS = {
     "marvel": int(os.getenv("MARVEL_CHANNEL_ID")),
 }
 
-# ===== Ticket Descriptions =====
 TICKET_DESCRIPTIONS = {
     "lol": """اهم حاجه خلي الاكونت اسمو نفس اليوزر اللى هبعتهولك
 و اللعب ارام بس 
@@ -29,7 +28,6 @@ TICKET_DESCRIPTIONS = {
     "marvel": ""
 }
 
-# ===== Bot =====
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -79,7 +77,6 @@ class TicketButtons(discord.ui.View):
             await log_channel.send(embed=embed, view=view)
 
         await interaction.response.send_message("✅ Ticket closed", ephemeral=True)
-
         await thread.edit(archived=True)
 
 # ===== Select =====
@@ -129,34 +126,26 @@ class TicketSelect(discord.ui.Select):
                 ephemeral=True
             )
 
-        # ===== استخراج أعلى رقم موجود =====
-        highest_number = 0
+        # ===== قراءة العداد من Topic =====
+        topic = channel.topic or ""
+        counter = 0
 
-        # المفتوحة
-        for t in channel.threads:
-            if t.name.startswith(f"{category}-"):
-                try:
-                    num = int(t.name.split("-")[-1])
-                    if num > highest_number:
-                        highest_number = num
-                except:
-                    pass
+        if "ticket_counter=" in topic:
+            try:
+                counter = int(topic.split("ticket_counter=")[1].split()[0])
+            except:
+                counter = 0
 
-        # المؤرشفة
+        # زيادة الرقم
+        counter += 1
+
+        # تحديث الـ Topic
         try:
-            async for t in channel.archived_threads(limit=None):
-                if t.name.startswith(f"{category}-"):
-                    try:
-                        num = int(t.name.split("-")[-1])
-                        if num > highest_number:
-                            highest_number = num
-                    except:
-                        pass
+            await channel.edit(topic=f"ticket_counter={counter}")
         except:
             pass
 
-        new_number = highest_number + 1
-        number = str(new_number).zfill(3)
+        number = str(counter).zfill(3)
         thread_name = f"{category}-{number}"
 
         # ===== إنشاء الثريد =====
@@ -168,7 +157,7 @@ class TicketSelect(discord.ui.Select):
 
         embed = discord.Embed(
             title="🎫 Support Ticket",
-            description=f"{member.mention} opened **{category}** ticket",
+            description=f"{member.mention} opened **{category}** ticket\nTicket ID: {number}",
             color=discord.Color.purple()
         )
 
