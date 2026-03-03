@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 import os
 
-# ===== ENV =====
 TOKEN = os.getenv("TOKEN")
 
 SUPPORT_ROLE_ID = int(os.getenv("SUPPORT_ROLE_ID"))
@@ -83,26 +82,14 @@ class TicketButtons(discord.ui.View):
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(
-                label="Buy From Our Shop",
-                value="shop",
-                emoji=discord.PartialEmoji(name="shop", id=1475214748021948456)
-            ),
-            discord.SelectOption(
-                label="League of Legends",
-                value="lol",
-                emoji=discord.PartialEmoji(name="lol", id=1475214617511723128)
-            ),
-            discord.SelectOption(
-                label="Valorant",
-                value="valorant",
-                emoji=discord.PartialEmoji(name="valorant", id=1433440387074232330)
-            ),
-            discord.SelectOption(
-                label="Marvel Rivals",
-                value="marvel",
-                emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)
-            ),
+            discord.SelectOption(label="Buy From Our Shop", value="shop",
+                                 emoji=discord.PartialEmoji(name="shop", id=1475214748021948456)),
+            discord.SelectOption(label="League of Legends", value="lol",
+                                 emoji=discord.PartialEmoji(name="lol", id=1475214617511723128)),
+            discord.SelectOption(label="Valorant", value="valorant",
+                                 emoji=discord.PartialEmoji(name="valorant", id=1433440387074232330)),
+            discord.SelectOption(label="Marvel Rivals", value="marvel",
+                                 emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)),
         ]
 
         super().__init__(
@@ -119,27 +106,52 @@ class TicketSelect(discord.ui.Select):
         member = interaction.user
 
         channel = guild.get_channel(CATEGORY_CHANNELS.get(category))
-
         if not channel:
-            return await interaction.followup.send(
-                "❌ Category channel not found",
-                ephemeral=True
-            )
+            return await interaction.followup.send("❌ Category channel not found", ephemeral=True)
 
-        # ===== قراءة العداد من Topic =====
+        # ===== محاولة قراءة العداد من Topic =====
         topic = channel.topic or ""
-        counter = 0
+        counter = None
 
         if "ticket_counter=" in topic:
             try:
                 counter = int(topic.split("ticket_counter=")[1].split()[0])
             except:
-                counter = 0
+                counter = None
 
-        # زيادة الرقم
+        # ===== لو مفيش عداد نعمل Scan =====
+        if counter is None:
+            highest_number = 0
+
+            for t in channel.threads:
+                parts = t.name.split("-")
+                if len(parts) >= 2:
+                    try:
+                        num = int(parts[-1])
+                        if num > highest_number:
+                            highest_number = num
+                    except:
+                        pass
+
+            try:
+                async for t in channel.archived_threads(limit=None):
+                    parts = t.name.split("-")
+                    if len(parts) >= 2:
+                        try:
+                            num = int(parts[-1])
+                            if num > highest_number:
+                                highest_number = num
+                        except:
+                            pass
+            except:
+                pass
+
+            counter = highest_number
+
+        # ===== زيادة الرقم =====
         counter += 1
 
-        # تحديث الـ Topic
+        # ===== حفظه في Topic =====
         try:
             await channel.edit(topic=f"ticket_counter={counter}")
         except:
@@ -163,11 +175,7 @@ class TicketSelect(discord.ui.Select):
 
         description_text = TICKET_DESCRIPTIONS.get(category)
         if description_text:
-            embed.add_field(
-                name="📋 Instructions",
-                value=description_text,
-                inline=False
-            )
+            embed.add_field(name="📋 Instructions", value=description_text, inline=False)
 
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
@@ -196,28 +204,8 @@ async def CAS(ctx):
 # ===== On Ready =====
 @bot.event
 async def on_ready():
-
     bot.add_view(TicketButtons())
     bot.add_view(TicketView())
-
-    for guild in bot.guilds:
-        for channel in guild.text_channels:
-
-            for thread in channel.threads:
-                try:
-                    await thread.join()
-                except:
-                    pass
-
-            try:
-                async for thread in channel.archived_threads(limit=None):
-                    try:
-                        await thread.join()
-                    except:
-                        pass
-            except:
-                pass
-
     print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
