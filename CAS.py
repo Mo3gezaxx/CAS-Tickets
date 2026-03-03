@@ -15,18 +15,6 @@ CATEGORY_CHANNELS = {
     "marvel": int(os.getenv("MARVEL_CHANNEL_ID")),
 }
 
-TICKET_DESCRIPTIONS = {
-    "lol": """اهم حاجه خلي الاكونت اسمو نفس اليوزر اللى هبعتهولك
-و اللعب ارام بس 
-و لو عايز تلعب مع حد من اصحابك عادي بس قبل متسلمني تعملهم unfriend 
-بلاش تبقى توكسيك ولو لقيت نفسك هتكون افك اكتب فى الروم <#1475111804232405023> و منشن رول levelers
-ولو فى اي حاجه مش فاهمها او هتعك فيها او عكتها بالفعل قولي متتكسفش يمكن نعرف نحلها سوا <#1475099936692637756>
-و حاول تدي التيم بتاعك اونر حتي لو كان مش احسن حاجه""",
-    "valorant": "",
-    "shop": "",
-    "marvel": ""
-}
-
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -50,10 +38,7 @@ class TicketButtons(discord.ui.View):
                 ephemeral=True
             )
 
-        try:
-            await thread.edit(topic=f"{topic} claimed_by={interaction.user.id}".strip())
-        except:
-            pass
+        await thread.edit(topic=f"{topic} claimed_by={interaction.user.id}".strip())
 
         button.label = f"Claimed by {interaction.user.display_name}"
         button.style = discord.ButtonStyle.success
@@ -72,7 +57,7 @@ class TicketButtons(discord.ui.View):
 
         if not interaction.user.guild_permissions.manage_threads:
             return await interaction.response.send_message(
-                "❌ You don't have permission to unclaim this ticket",
+                "❌ You don't have permission",
                 ephemeral=True
             )
 
@@ -83,11 +68,7 @@ class TicketButtons(discord.ui.View):
             )
 
         new_topic = topic.split("claimed_by=")[0].strip()
-
-        try:
-            await thread.edit(topic=new_topic)
-        except:
-            pass
+        await thread.edit(topic=new_topic)
 
         for item in self.children:
             if item.custom_id == "ticket_claim_button":
@@ -152,6 +133,7 @@ class TicketSelect(discord.ui.Select):
                 ephemeral=True
             )
 
+        # ===== Counter System =====
         topic = channel.topic or ""
         counter = 0
 
@@ -173,14 +155,12 @@ class TicketSelect(discord.ui.Select):
 
         counter += 1
 
-        try:
-            await channel.edit(topic=f"ticket_counter={counter}")
-        except:
-            pass
+        await channel.edit(topic=f"ticket_counter={counter}")
 
         number = str(counter).zfill(3)
         thread_name = f"{category}-{number}"
 
+        # ===== Create Thread =====
         thread = await channel.create_thread(
             name=thread_name,
             type=discord.ChannelType.private_thread,
@@ -199,17 +179,16 @@ class TicketSelect(discord.ui.Select):
             view=TicketButtons()
         )
 
-        # رسالة مخفية للشخص
+        # ===== Ephemeral Message =====
         await interaction.followup.send(
             f"✅ Your ticket has been created: {thread.mention}",
             ephemeral=True
         )
 
-        # Reset الاختيار
+        # ===== Reset Select =====
         self.values = []
         await interaction.message.edit(view=self.view)
 
-# ================= View =================
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
