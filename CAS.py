@@ -35,22 +35,72 @@ class TicketButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(
-        label="Claim",
-        style=discord.ButtonStyle.primary,
-        custom_id="ticket_claim_button"
-    )
+    @discord.ui.button(label="Claim",
+                       style=discord.ButtonStyle.primary,
+                       custom_id="ticket_claim_button")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            f"📌 Claimed by {interaction.user.mention}",
-            ephemeral=True
-        )
 
-    @discord.ui.button(
-        label="Close",
-        style=discord.ButtonStyle.danger,
-        custom_id="ticket_close_button"
-    )
+        thread = interaction.channel
+        topic = thread.topic or ""
+
+        if "claimed_by=" in topic:
+            claimed_id = topic.split("claimed_by=")[1].split()[0]
+            return await interaction.response.send_message(
+                f"❌ Ticket already claimed by <@{claimed_id}>",
+                ephemeral=True
+            )
+
+        try:
+            await thread.edit(topic=f"{topic} claimed_by={interaction.user.id}".strip())
+        except:
+            pass
+
+        button.label = f"Claimed by {interaction.user.display_name}"
+        button.style = discord.ButtonStyle.success
+        button.disabled = True
+
+        await interaction.response.edit_message(view=self)
+        await thread.send(f"📌 Ticket claimed by {interaction.user.mention}")
+
+    @discord.ui.button(label="Unclaim",
+                       style=discord.ButtonStyle.secondary,
+                       custom_id="ticket_unclaim_button")
+    async def unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        thread = interaction.channel
+        topic = thread.topic or ""
+
+        if not interaction.user.guild_permissions.manage_threads:
+            return await interaction.response.send_message(
+                "❌ You don't have permission to unclaim this ticket",
+                ephemeral=True
+            )
+
+        if "claimed_by=" not in topic:
+            return await interaction.response.send_message(
+                "❌ Ticket is not claimed",
+                ephemeral=True
+            )
+
+        new_topic = topic.split("claimed_by=")[0].strip()
+
+        try:
+            await thread.edit(topic=new_topic)
+        except:
+            pass
+
+        for item in self.children:
+            if item.custom_id == "ticket_claim_button":
+                item.label = "Claim"
+                item.style = discord.ButtonStyle.primary
+                item.disabled = False
+
+        await interaction.response.edit_message(view=self)
+        await thread.send(f"🔓 Ticket unclaimed by {interaction.user.mention}")
+
+    @discord.ui.button(label="Close",
+                       style=discord.ButtonStyle.danger,
+                       custom_id="ticket_close_button")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         thread = interaction.channel
@@ -109,7 +159,6 @@ class TicketSelect(discord.ui.Select):
         if not channel:
             return await interaction.followup.send("❌ Category channel not found", ephemeral=True)
 
-        # ===== محاولة قراءة العداد من Topic =====
         topic = channel.topic or ""
         counter = None
 
@@ -119,9 +168,15 @@ class TicketSelect(discord.ui.Select):
             except:
                 counter = None
 
-        # ===== لو مفيش عداد نعمل Scan =====
         if counter is None:
-            highest_number = 0
+            default_starts = {
+                "valorant": 22,
+                "lol": 66,
+                "marvel": 15,
+                "shop": 0
+            }
+
+            highest_number = default_starts.get(category, 0)
 
             for t in channel.threads:
                 parts = t.name.split("-")
@@ -148,10 +203,8 @@ class TicketSelect(discord.ui.Select):
 
             counter = highest_number
 
-        # ===== زيادة الرقم =====
         counter += 1
 
-        # ===== حفظه في Topic =====
         try:
             await channel.edit(topic=f"ticket_counter={counter}")
         except:
@@ -160,7 +213,6 @@ class TicketSelect(discord.ui.Select):
         number = str(counter).zfill(3)
         thread_name = f"{category}-{number}"
 
-        # ===== إنشاء الثريد =====
         thread = await channel.create_thread(
             name=thread_name,
             type=discord.ChannelType.private_thread,
@@ -175,7 +227,9 @@ class TicketSelect(discord.ui.Select):
 
         description_text = TICKET_DESCRIPTIONS.get(category)
         if description_text:
-            embed.add_field(name="📋 Instructions", value=description_text, inline=False)
+            embed.add_field(name="📋 Instructions",
+                            value=description_text,
+                            inline=False)
 
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
@@ -188,7 +242,6 @@ class TicketSelect(discord.ui.Select):
             ephemeral=True
         )
 
-# ===== Panel =====
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -201,7 +254,6 @@ async def CAS(ctx):
 
     await ctx.send("اختار الخدمة اللي انت عايزها 👇", view=TicketView())
 
-# ===== On Ready =====
 @bot.event
 async def on_ready():
     bot.add_view(TicketButtons())
