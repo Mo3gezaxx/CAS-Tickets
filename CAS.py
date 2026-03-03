@@ -15,6 +15,18 @@ CATEGORY_CHANNELS = {
     "marvel": int(os.getenv("MARVEL_CHANNEL_ID")),
 }
 
+TICKET_DESCRIPTIONS = {
+    "lol": """اهم حاجه خلي الاكونت اسمو نفس اليوزر اللى هبعتهولك
+و اللعب ارام بس 
+و لو عايز تلعب مع حد من اصحابك عادي بس قبل متسلمني تعملهم unfriend 
+بلاش تبقى توكسيك ولو لقيت نفسك هتكون افك اكتب فى الروم <#1475111804232405023> و منشن رول levelers
+ولو فى اي حاجه مش فاهمها او هتعك فيها او عكتها بالفعل قولي متتكسفش يمكن نعرف نحلها سوا <#1475099936692637756>
+و حاول تدي التيم بتاعك اونر حتي لو كان مش احسن حاجه""",
+    "valorant": "",
+    "shop": "",
+    "marvel": ""
+}
+
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -27,57 +39,9 @@ class TicketButtons(discord.ui.View):
                        style=discord.ButtonStyle.primary,
                        custom_id="ticket_claim_button")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        thread = interaction.channel
-        topic = thread.topic or ""
-
-        if "claimed_by=" in topic:
-            claimed_id = topic.split("claimed_by=")[1].split()[0]
-            return await interaction.response.send_message(
-                f"❌ Ticket already claimed by <@{claimed_id}>",
-                ephemeral=True
-            )
-
-        await thread.edit(topic=f"{topic} claimed_by={interaction.user.id}".strip())
-
-        button.label = f"Claimed by {interaction.user.display_name}"
-        button.style = discord.ButtonStyle.success
-        button.disabled = True
-
-        await interaction.response.edit_message(view=self)
-        await thread.send(f"📌 Ticket claimed by {interaction.user.mention}")
-
-    @discord.ui.button(label="Unclaim",
-                       style=discord.ButtonStyle.secondary,
-                       custom_id="ticket_unclaim_button")
-    async def unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        thread = interaction.channel
-        topic = thread.topic or ""
-
-        if not interaction.user.guild_permissions.manage_threads:
-            return await interaction.response.send_message(
-                "❌ You don't have permission",
-                ephemeral=True
-            )
-
-        if "claimed_by=" not in topic:
-            return await interaction.response.send_message(
-                "❌ Ticket is not claimed",
-                ephemeral=True
-            )
-
-        new_topic = topic.split("claimed_by=")[0].strip()
-        await thread.edit(topic=new_topic)
-
-        for item in self.children:
-            if item.custom_id == "ticket_claim_button":
-                item.label = "Claim"
-                item.style = discord.ButtonStyle.primary
-                item.disabled = False
-
-        await interaction.response.edit_message(view=self)
-        await thread.send(f"🔓 Ticket unclaimed by {interaction.user.mention}")
+        await interaction.response.send_message(
+            f"📌 Claimed by {interaction.user.mention}"
+        )
 
     @discord.ui.button(label="Close",
                        style=discord.ButtonStyle.danger,
@@ -133,7 +97,7 @@ class TicketSelect(discord.ui.Select):
                 ephemeral=True
             )
 
-        # ===== Counter System =====
+        # ===== Counter =====
         topic = channel.topic or ""
         counter = 0
 
@@ -173,22 +137,30 @@ class TicketSelect(discord.ui.Select):
             color=discord.Color.purple()
         )
 
+        description_text = TICKET_DESCRIPTIONS.get(category)
+        if description_text:
+            embed.add_field(
+                name="📋 Instructions",
+                value=description_text,
+                inline=False
+            )
+
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
             embed=embed,
             view=TicketButtons()
         )
 
-        # ===== Ephemeral Message =====
+        # ===== رسالة مخفية =====
         await interaction.followup.send(
             f"✅ Your ticket has been created: {thread.mention}",
             ephemeral=True
         )
 
         # ===== Reset Select =====
-        self.values = []
-        await interaction.message.edit(view=self.view)
+        await interaction.message.edit(view=TicketView())
 
+# ================= View =================
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -196,7 +168,7 @@ class TicketView(discord.ui.View):
 
 @bot.command()
 async def CAS(ctx):
-    await ctx.send("👇 اختار الخدمة اللي انت عايزها", view=TicketView())
+    await ctx.send("👇 اختار الخدمة", view=TicketView())
 
 @bot.event
 async def on_ready():
