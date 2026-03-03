@@ -1,7 +1,9 @@
 import discord
 from discord.ext import commands
+import json
 import os
 
+# ===== ENV (Railway) =====
 TOKEN = os.getenv("TOKEN")
 
 SUPPORT_ROLE_ID = int(os.getenv("SUPPORT_ROLE_ID"))
@@ -15,6 +17,7 @@ CATEGORY_CHANNELS = {
     "marvel": int(os.getenv("MARVEL_CHANNEL_ID")),
 }
 
+# ===== Ticket Descriptions =====
 TICKET_DESCRIPTIONS = {
     "lol": """اهم حاجه خلي الاكونت اسمو نفس اليوزر اللى هبعتهولك
 و اللعب ارام بس 
@@ -22,35 +25,85 @@ TICKET_DESCRIPTIONS = {
 بلاش تبقى توكسيك ولو لقيت نفسك هتكون افك اكتب فى الروم <#1475111804232405023> و منشن رول levelers
 ولو فى اي حاجه مش فاهمها او هتعك فيها او عكتها بالفعل قولي متتكسفش يمكن نعرف نحلها سوا <#1475099936692637756>
 و حاول تدي التيم بتاعك اونر حتي لو كان مش احسن حاجه""",
+
     "valorant": "",
     "shop": "",
     "marvel": ""
 }
 
-intents = discord.Intents.all()
+# ===== Counter File =====
+COUNTER_FILE = "tickets.json"
+
+if os.path.exists(COUNTER_FILE):
+    with open(COUNTER_FILE, "r") as f:
+        ticket_counters = json.load(f)
+else:
+    ticket_counters = {"shop": 0, "lol": 0, "valorant": 0, "marvel": 0}
+
+
+def save_counters():
+    with open(COUNTER_FILE, "w") as f:
+        json.dump(ticket_counters, f)
+
+
+# ===== Bot =====
+intents = discord.Intents.default()
+intents.guilds = True
+intents.message_content = True
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ================= Buttons =================
+
+# ===== Buttons =====
 class TicketButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Claim",
-                       style=discord.ButtonStyle.primary,
-                       custom_id="ticket_claim_button")
+    @discord.ui.button(label="Claim", style=discord.ButtonStyle.primary)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            f"📌 Claimed by {interaction.user.mention}"
+            f"📌 Claimed by {interaction.user.mention}",
+            ephemeral=True
         )
 
-    @discord.ui.button(label="Close",
-                       style=discord.ButtonStyle.danger,
-                       custom_id="ticket_close_button")
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("✅ Ticket closed", ephemeral=True)
-        await interaction.channel.edit(archived=True)
+        thread = interaction.channel
+        guild = interaction.guild
+        log_channel = guild.get_channel(LOG_CHANNEL_ID)
 
-# ================= Select =================
+        opener = thread.owner_id
+        closer = interaction.user
+
+        # ===== Log Embed =====
+        embed = discord.Embed(
+            title="🔒 Ticket Closed",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Ticket", value=thread.name)
+        embed.add_field(name="Opened By", value=f"<@{opener}>")
+        embed.add_field(name="Closed By", value=closer.mention)
+        embed.add_field(
+            name="Time",
+            value=discord.utils.format_dt(discord.utils.utcnow())
+        )
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="View Thread", url=thread.jump_url))
+
+        if log_channel:
+            await log_channel.send(embed=embed, view=view)
+
+        await interaction.response.send_message(
+            "✅ Ticket closed",
+            ephemeral=True
+        )
+
+        # ===== Archive =====
+        await thread.edit(archived=True)
+
+
+# ===== Select =====
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
@@ -75,22 +128,18 @@ class TicketSelect(discord.ui.Select):
                 emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)
             ),
         ]
-
-        super().__init__(
-            placeholder="Choose a category",
-            options=options,
-            custom_id="ticket_category_select"
-        )
+        super().__init__(placeholder="Choose a category", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-
         await interaction.response.defer(ephemeral=True)
 
         category = self.values[0]
         guild = interaction.guild
         member = interaction.user
 
-        channel = guild.get_channel(CATEGORY_CHANNELS.get(category))
+        channel_id = CATEGORY_CHANNELS.get(category)
+        channel = guild.get_channel(channel_id)
+
         if not channel:
             return await interaction.followup.send(
                 "❌ Category channel not found",
@@ -98,30 +147,10 @@ class TicketSelect(discord.ui.Select):
             )
 
         # ===== Counter =====
-        topic = channel.topic or ""
-        counter = 0
+        ticket_counters[category] += 1
+        save_counters()
 
-        if "ticket_counter=" in topic:
-            try:
-                counter = int(topic.split("ticket_counter=")[1].split()[0])
-            except:
-                counter = 0
-
-        default_starts = {
-            "valorant": 22,
-            "lol": 66,
-            "marvel": 15,
-            "shop": 0
-        }
-
-        if counter == 0:
-            counter = default_starts.get(category, 0)
-
-        counter += 1
-
-        await channel.edit(topic=f"ticket_counter={counter}")
-
-        number = str(counter).zfill(3)
+        number = str(ticket_counters[category]).zfill(3)
         thread_name = f"{category}-{number}"
 
         # ===== Create Thread =====
@@ -131,9 +160,10 @@ class TicketSelect(discord.ui.Select):
             auto_archive_duration=1440
         )
 
+        # ===== Embed =====
         embed = discord.Embed(
             title="🎫 Support Ticket",
-            description=f"{member.mention} opened **{category}** ticket\nTicket ID: {number}",
+            description=f"{member.mention} opened **{category}** ticket",
             color=discord.Color.purple()
         )
 
@@ -145,35 +175,43 @@ class TicketSelect(discord.ui.Select):
                 inline=False
             )
 
+        # ===== Send Ticket Message =====
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
             embed=embed,
             view=TicketButtons()
         )
 
-        # ===== رسالة مخفية =====
         await interaction.followup.send(
-            f"✅ Your ticket has been created: {thread.mention}",
+            f"✅ Ticket created: {thread.mention}",
             ephemeral=True
         )
 
-        # ===== Reset Select =====
+        # Reset select
         await interaction.message.edit(view=TicketView())
 
-# ================= View =================
+
+# ===== Panel =====
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketSelect())
 
+
 @bot.command()
 async def CAS(ctx):
-    await ctx.send("👇 اختار الخدمة", view=TicketView())
+    if not ctx.author.guild_permissions.administrator:
+        return await ctx.send("❌ Admin only")
+
+    await ctx.send(
+        "اختار الخدمة اللي انت عايزها 👇",
+        view=TicketView()
+    )
+
 
 @bot.event
 async def on_ready():
-    bot.add_view(TicketButtons())
-    bot.add_view(TicketView())
     print(f"Logged in as {bot.user}")
+
 
 bot.run(TOKEN)
