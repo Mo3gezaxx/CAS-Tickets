@@ -111,10 +111,26 @@ class TicketButtons(discord.ui.View):
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="Buy From Our Shop", value="shop"),
-            discord.SelectOption(label="League of Legends", value="lol"),
-            discord.SelectOption(label="Valorant", value="valorant"),
-            discord.SelectOption(label="Marvel Rivals", value="marvel"),
+            discord.SelectOption(
+                label="Buy From Our Shop",
+                value="shop",
+                emoji=discord.PartialEmoji(name="shop", id=1475214748021948456)
+            ),
+            discord.SelectOption(
+                label="League of Legends",
+                value="lol",
+                emoji=discord.PartialEmoji(name="lol", id=1475214617511723128)
+            ),
+            discord.SelectOption(
+                label="Valorant",
+                value="valorant",
+                emoji=discord.PartialEmoji(name="valorant", id=1433440387074232330)
+            ),
+            discord.SelectOption(
+                label="Marvel Rivals",
+                value="marvel",
+                emoji=discord.PartialEmoji(name="marvel", id=1475216899141795954)
+            ),
         ]
 
         super().__init__(
