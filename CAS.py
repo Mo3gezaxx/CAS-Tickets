@@ -175,33 +175,7 @@ class TicketSelect(discord.ui.Select):
                 "marvel": 15,
                 "shop": 0
             }
-
-            highest_number = default_starts.get(category, 0)
-
-            for t in channel.threads:
-                parts = t.name.split("-")
-                if len(parts) >= 2:
-                    try:
-                        num = int(parts[-1])
-                        if num > highest_number:
-                            highest_number = num
-                    except:
-                        pass
-
-            try:
-                async for t in channel.archived_threads(limit=None):
-                    parts = t.name.split("-")
-                    if len(parts) >= 2:
-                        try:
-                            num = int(parts[-1])
-                            if num > highest_number:
-                                highest_number = num
-                        except:
-                            pass
-            except:
-                pass
-
-            counter = highest_number
+            counter = default_starts.get(category, 0)
 
         counter += 1
 
@@ -225,12 +199,6 @@ class TicketSelect(discord.ui.Select):
             color=discord.Color.purple()
         )
 
-        description_text = TICKET_DESCRIPTIONS.get(category)
-        if description_text:
-            embed.add_field(name="📋 Instructions",
-                            value=description_text,
-                            inline=False)
-
         await thread.send(
             content=f"{member.mention} <@&{SUPPORT_ROLE_ID}> <@&{EXTRA_ROLE_ID}>",
             embed=embed,
@@ -242,6 +210,9 @@ class TicketSelect(discord.ui.Select):
             ephemeral=True
         )
 
+        # 🔥 Reset للـ Select
+        await interaction.message.edit(view=TicketView())
+
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -252,7 +223,7 @@ async def CAS(ctx):
     if not ctx.author.guild_permissions.administrator:
         return await ctx.send("❌ Admin only")
 
-    await ctx.send("اختار الخدمة اللي انت عايزها 👇", view=TicketView())
+    await ctx.send("👇 اختار الخدمة اللي انت عايزها", view=TicketView())
 
 @bot.event
 async def on_ready():
