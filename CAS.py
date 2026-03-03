@@ -30,7 +30,7 @@ TICKET_DESCRIPTIONS = {
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===== Buttons =====
+# ================= Buttons =================
 class TicketButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -102,12 +102,10 @@ class TicketButtons(discord.ui.View):
                        style=discord.ButtonStyle.danger,
                        custom_id="ticket_close_button")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        thread = interaction.channel
         await interaction.response.send_message("✅ Ticket closed", ephemeral=True)
-        await thread.edit(archived=True)
+        await interaction.channel.edit(archived=True)
 
-# ===== Select =====
+# ================= Select =================
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
@@ -141,13 +139,15 @@ class TicketSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
 
+        await interaction.response.defer(ephemeral=True)
+
         category = self.values[0]
         guild = interaction.guild
         member = interaction.user
 
         channel = guild.get_channel(CATEGORY_CHANNELS.get(category))
         if not channel:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "❌ Category channel not found",
                 ephemeral=True
             )
@@ -199,10 +199,17 @@ class TicketSelect(discord.ui.Select):
             view=TicketButtons()
         )
 
-        # 🔥 Reset الاختيار بدون إنشاء View جديدة
-        self.values = []
-        await interaction.response.edit_message(view=self.view)
+        # رسالة مخفية للشخص
+        await interaction.followup.send(
+            f"✅ Your ticket has been created: {thread.mention}",
+            ephemeral=True
+        )
 
+        # Reset الاختيار
+        self.values = []
+        await interaction.message.edit(view=self.view)
+
+# ================= View =================
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
